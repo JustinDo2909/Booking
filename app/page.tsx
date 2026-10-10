@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, User, X, CheckCircle, AlertCircle, Loader2, List } from 'lucide-react';
 
-const N8N_WEBHOOK_URL = "https://booking1985.app.n8n.cloud/webhook-test/bookings";
+const N8N_WEBHOOK_URL = "https://booking1985.app.n8n.cloud/webhook/bookings";
 
 const generateTimeSlots = () => {
   const slots = [];
