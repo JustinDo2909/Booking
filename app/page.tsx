@@ -3,9 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, User, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
-const N8N_WEBHOOK_URL = "https://booking1985.app.n8n.cloud/webhook/bookings";
+const N8N_WEBHOOK_URL = "https://booking1985.app.n8n.cloud/webhook-test/bookings";
 
-// Generate 1-hour time slots from 09:00 to 17:00
 const generateTimeSlots = () => {
   const slots = [];
   for (let i = 9; i < 17; i++) {
@@ -18,8 +17,7 @@ const generateTimeSlots = () => {
 
 const DEFAULT_SLOTS = generateTimeSlots();
 
-// Helper to handle Excel serial dates like "46305"
-const parseExcelDate = (dateVal) => {
+const parseExcelDate = (dateVal: any) => {
   if (!dateVal) return null;
   const strVal = String(dateVal).trim();
   if (/^\d+$/.test(strVal)) {
@@ -31,12 +29,13 @@ const parseExcelDate = (dateVal) => {
 };
 
 export default function VisitationBooking() {
-  const [selectedDate, setSelectedDate] = useState(() => {
-    return new Date().toISOString().split('T')[0];
-  });
+  // KHẮC PHỤC LỖI BUILD: Khởi tạo giá trị rỗng thay vì gọi new Date() trực tiếp
+  const [isMounted, setIsMounted] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [minDate, setMinDate] = useState('');
   
-  const [bookedData, setBookedData] = useState([]);
-  const [selectedSlots, setSelectedSlots] = useState([]); // Changed to Array for multiple selection
+  const [bookedData, setBookedData] = useState<any[]>([]);
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [fullName, setFullName] = useState('');
   
@@ -45,10 +44,14 @@ export default function VisitationBooking() {
   const [message, setMessage] = useState({ text: '', type: '' });
 
   useEffect(() => {
+    // KHẮC PHỤC LỖI BUILD: Mọi logic lấy thời gian hiện tại được đưa vào đây
+    const today = new Date().toISOString().split('T')[0];
+    setSelectedDate(today);
+    setMinDate(today);
+    setIsMounted(true); // Đánh dấu Component đã render thành công trên trình duyệt
     fetchBookedSlots();
   }, []);
 
-  // Reset selected slots when date changes
   useEffect(() => {
     setSelectedSlots([]);
   }, [selectedDate]);
@@ -68,7 +71,7 @@ export default function VisitationBooking() {
     }
   };
 
-  const handleToggleSlot = (slot) => {
+  const handleToggleSlot = (slot: string) => {
     if (selectedSlots.includes(slot)) {
       setSelectedSlots(selectedSlots.filter(s => s !== slot));
     } else {
@@ -89,7 +92,7 @@ export default function VisitationBooking() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const trimmedName = fullName.trim();
@@ -106,10 +109,9 @@ export default function VisitationBooking() {
     setMessage({ text: '', type: '' });
 
     let successCount = 0;
-    let conflictSlots = [];
+    let conflictSlots: string[] = [];
     let hasError = false;
 
-    // Process each selected slot individually to match backend Regex rules
     for (const slot of selectedSlots) {
       try {
         const response = await fetch(N8N_WEBHOOK_URL, {
@@ -134,7 +136,6 @@ export default function VisitationBooking() {
       }
     }
 
-    // Handle results
     if (successCount === selectedSlots.length) {
       setMessage({ text: 'Booking confirmed successfully!', type: 'success' });
       setTimeout(() => {
@@ -147,7 +148,7 @@ export default function VisitationBooking() {
         text: `Some slots were already taken: ${conflictSlots.join(', ')}. Successful bookings were saved.`, 
         type: 'error' 
       });
-      setSelectedSlots(conflictSlots); // Keep only failed slots selected
+      setSelectedSlots(conflictSlots);
       fetchBookedSlots();
     } else if (hasError) {
       setMessage({ text: 'System error occurred. Please try again later.', type: 'error' });
@@ -157,11 +158,13 @@ export default function VisitationBooking() {
     setIsSubmitting(false);
   };
 
+  // Tránh việc server render giao diện lỗi trước khi xác định được thời gian
+  if (!isMounted) return null;
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center py-10 px-4 font-sans text-gray-800">
       <div className="w-full max-w-md bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
         
-        {/* Loading Overlay for GET Request */}
         {isFetching && (
           <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-lg">
             <Loader2 className="w-8 h-8 text-gray-900 animate-spin mb-2" />
@@ -181,7 +184,7 @@ export default function VisitationBooking() {
           <input 
             type="date" 
             value={selectedDate}
-            min={new Date().toISOString().split('T')[0]}
+            min={minDate} 
             onChange={(e) => setSelectedDate(e.target.value)}
             className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-gray-600 focus:ring-1 focus:ring-gray-600 bg-white"
           />
@@ -220,10 +223,8 @@ export default function VisitationBooking() {
             })}
           </div>
         </div>
-
       </div>
 
-      {/* Floating Action Button - Only shows when slots are selected */}
       {selectedSlots.length > 0 && !isModalOpen && (
         <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20 flex justify-center animate-in slide-in-from-bottom-5">
           <div className="w-full max-w-md flex items-center justify-between">
@@ -240,12 +241,10 @@ export default function VisitationBooking() {
         </div>
       )}
 
-      {/* Booking Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-lg w-full max-w-sm shadow-xl overflow-hidden relative">
             
-            {/* Loading Overlay for POST Request */}
             {isSubmitting && (
               <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
                 <Loader2 className="w-8 h-8 text-gray-900 animate-spin mb-2" />
@@ -262,7 +261,7 @@ export default function VisitationBooking() {
 
             <form onSubmit={handleSubmit} className="p-5">
               <div className="mb-4 bg-gray-50 p-3 rounded text-sm text-gray-600 border border-gray-100 max-h-32 overflow-y-auto">
-                <p className="mb-1">Date: <strong>{selectedDate.split('-').reverse().join('/')}</strong></p>
+                <p className="mb-1">Date: <strong>{selectedDate ? selectedDate.split('-').reverse().join('/') : ''}</strong></p>
                 <p>Selected Time(s):</p>
                 <ul className="list-disc pl-5 mt-1 font-medium">
                   {selectedSlots.map(s => <li key={s}>{s.replace('-', ' - ')}</li>)}
